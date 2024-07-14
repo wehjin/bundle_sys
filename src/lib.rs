@@ -59,18 +59,16 @@ pub mod bundle {
 		Reflect::set(&object, &key.to_js(), &value.unchecked_into()).expect("reflect-set");
 		object
 	}
-	pub fn assoc_in(b: &Bundle, mut keys: Vec<Box<dyn Key>>, value: impl JsCast) -> Bundle {
+	pub fn assoc_in(b: &Bundle, keys: &[Box<dyn Key>], value: impl JsCast) -> Bundle {
 		match keys.len() {
 			0 => copy(b),
-			1 => assoc(b, ShadowKey(keys.remove(0).to_js()), value),
+			1 => assoc(b, ShadowKey(keys[0].to_js()), value),
 			_ => {
-				let head_key = ShadowKey(keys.remove(0).to_js());
-				let tail_keys = keys;
-				let value = match get::<Bundle>(b, head_key.clone()) {
-					None => assoc_in(&empty(), tail_keys, value),
-					Some(existing) => assoc_in(&existing, tail_keys, value),
+				let value = match get::<Bundle>(b, ShadowKey(keys[0].to_js())) {
+					None => assoc_in(&empty(), &keys[1..], value),
+					Some(existing) => assoc_in(&existing, &keys[1..], value),
 				};
-				assoc(b, head_key, value)
+				assoc(b, ShadowKey(keys[0].to_js()), value)
 			}
 		}
 	}
@@ -130,7 +128,7 @@ pub mod bundle {
 
 		#[wasm_bindgen_test]
 		fn assoc_in_creates_sub_bundles() {
-			let parent = assoc_in(&empty(), vec![Box::new(HelloKey), Box::new(WorldKey)], JsString::from("Bob"));
+			let parent = assoc_in(&empty(), &[Box::new(HelloKey), Box::new(WorldKey)], JsString::from("Bob"));
 			let child = bundle::get::<Bundle>(&parent, HelloKey).unwrap();
 			let from_child = bundle::get::<JsString>(&child, WorldKey);
 			let from_parent = bundle::get_in::<JsString>(&parent, &[Box::new(HelloKey), Box::new(WorldKey)]);
