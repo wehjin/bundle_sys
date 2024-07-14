@@ -15,7 +15,7 @@ impl BundleValue {
 	}
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Bundle(HashMap<String, BundleValue>);
 impl Bundle {
 	pub fn empty() -> Self { Self(HashMap::new()) }
@@ -26,11 +26,35 @@ impl Bundle {
 		self.0.get(key.as_ref())
 			.map(|value| value.get_rc::<V>())
 	}
+	pub fn get_in<'a, V: Clone + 'static>(&self, keys: impl AsRef<[&'a str]> + Sized) -> Option<Rc<V>> {
+		let keys = keys.as_ref();
+		match keys.len() {
+			0 => None,
+			1 => self.get(keys[0]),
+			_ => match self.get::<Bundle>(keys[0]) {
+				Some(child) => child.get_in(&keys[1..]),
+				None => None,
+			},
+		}
+	}
+
 	pub fn assoc<V: Clone + 'static>(&self, key: impl AsRef<str>, value: V) -> Self
 	{
 		let mut data = self.0.clone();
 		data.insert(key.as_ref().to_string(), BundleValue::new(value));
 		Self(data)
+	}
+	pub fn assoc_in<'a, V: Clone + 'static>(&self, keys: impl AsRef<[&'a str]> + Sized, value: V) -> Self {
+		let keys = keys.as_ref();
+		match keys.len() {
+			0 => self.clone(),
+			1 => self.assoc(keys[0], value),
+			_ => {
+				let old_child = self.get::<Bundle>(keys[0]).unwrap_or_else(|| Rc::new(Bundle::empty()));
+				let new_child = old_child.assoc_in(&keys[1..], value);
+				self.assoc(keys[0], new_child)
+			}
+		}
 	}
 	pub fn dissoc<V: Clone + 'static>(&self, key: impl AsRef<str>) -> Self
 	{
@@ -42,6 +66,8 @@ impl Bundle {
 
 #[cfg(test)]
 pub mod tests {
+	use std::rc::Rc;
+
 	use crate::bundle::Bundle;
 
 	#[test]
@@ -105,21 +131,16 @@ pub mod tests {
 		assert_eq!(second.get::<String>("world").unwrap().as_ref(), "Jill");
 	}
 
-
 	#[test]
-	#[ignore]
 	fn assoc_in_creates_sub_bundles() {
-		// let hello_and_world = assoc_in(
-		// 	&empty(),
-		// 	[HELLO.as_key(), WORLD.as_key()],
-		// 	JsString::from("Bob"),
-		// );
-		// let just_world = bundle::get::<Bundle>(&hello_and_world, &HELLO).unwrap();
-		// let bob_from_just_world = bundle::get::<JsString>(&just_world, &WORLD);
-		// let bob_from_hello_world = bundle::get_in::<JsString>(
-		// 	&hello_and_world,
-		// 	[HELLO.as_key(), WORLD.as_key()],
-		// );
-		// assert_eq!(bob_from_just_world, bob_from_hello_world);
+		let hello_and_world = Bundle::empty().assoc_in(["hello", "world"], "Bob".to_string());
+		assert_eq!(hello_and_world.len(), 1);
+		let just_world = hello_and_world.get::<Bundle>("hello").unwrap();
+		assert_eq!(just_world.len(), 1);
+
+		let bob_from_just_world = just_world.get::<String>("world");
+		let bob_from_hello_world = hello_and_world.get_in::<String>(["hello", "world"]);
+		assert_eq!(bob_from_just_world, bob_from_hello_world);
+		assert_eq!(bob_from_just_world, Some(Rc::new("Bob".to_string())));
 	}
 }
