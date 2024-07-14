@@ -14,11 +14,11 @@ pub mod bundle {
 	}
 	impl<T: Key> Key for Box<T> {}
 
-	pub trait TryGetBundleValue {
+	pub trait TryGet {
 		fn try_get<V: JsCast>(&self, b: &Bundle) -> Option<V>;
 	}
 
-	impl<A: Key> TryGetBundleValue for A {
+	impl<A: Key> TryGet for A {
 		fn try_get<V: JsCast>(&self, b: &Bundle) -> Option<V> { try_get(&b, self) }
 	}
 
@@ -96,53 +96,53 @@ pub mod bundle {
 		use web_sys::js_sys::JsString;
 
 		use crate::bundle;
-		use crate::bundle::{assoc, assoc_in, Bundle, dissoc, empty, Key, TryGetBundleValue};
+		use crate::bundle::{assoc, assoc_in, Bundle, dissoc, empty, Key, TryGet};
 
 		#[derive(Copy, Clone)]
-		pub struct HelloKey;
-		impl Key for HelloKey {}
+		pub struct Hello;
+		impl Key for Hello {}
 
 		#[derive(Copy, Clone)]
-		pub struct WorldKey;
-		impl Key for WorldKey {}
+		pub struct World;
+		impl Key for World {}
 
 		#[wasm_bindgen_test]
 		fn no_value_when_empty() {
 			let bun = empty();
-			assert_eq!(None, WorldKey {}.try_get::<JsString>(&bun));
+			assert_eq!(None, World {}.try_get::<JsString>(&bun));
 		}
 
 		#[wasm_bindgen_test]
 		fn some_value_after_assoc() {
-			let bun = assoc(&empty(), &WorldKey, JsString::from("Bob"));
-			assert_eq!(Some(JsString::from("Bob")), WorldKey.try_get(&bun));
+			let bun = assoc(&empty(), &World, JsString::from("Bob"));
+			assert_eq!(Some(JsString::from("Bob")), World.try_get(&bun));
 		}
 
 		#[wasm_bindgen_test]
 		fn no_value_after_dissoc() {
-			let bun = assoc(&empty(), &WorldKey, JsString::from("Bob"));
-			let bun = dissoc(&bun, WorldKey);
-			assert_eq!(None, WorldKey.try_get::<JsString>(&bun));
+			let bun = assoc(&empty(), &World, JsString::from("Bob"));
+			let bun = dissoc(&bun, World);
+			assert_eq!(None, World.try_get::<JsString>(&bun));
 		}
 
 		#[wasm_bindgen_test]
 		fn assoc_after_assoc_leaves_parent_untouched() {
-			let a = assoc(&empty(), &WorldKey, JsString::from("Bob"));
-			let b = assoc(&a, &WorldKey, JsString::from("Silent"));
-			assert_ne!(WorldKey.try_get::<JsString>(&a), WorldKey.try_get::<JsString>(&b));
+			let a = assoc(&empty(), &World, JsString::from("Bob"));
+			let b = assoc(&a, &World, JsString::from("Silent"));
+			assert_ne!(World.try_get::<JsString>(&a), World.try_get::<JsString>(&b));
 		}
 		#[wasm_bindgen_test]
 		fn assoc_in_creates_sub_bundles() {
 			let hello_and_world = assoc_in(
 				&empty(),
-				[HelloKey.as_key(), WorldKey.as_key()],
+				[Hello.as_key(), World.as_key()],
 				JsString::from("Bob"),
 			);
-			let just_world = bundle::try_get::<Bundle>(&hello_and_world, &HelloKey).unwrap();
-			let bob_from_just_world = bundle::try_get::<JsString>(&just_world, &WorldKey);
+			let just_world = bundle::try_get::<Bundle>(&hello_and_world, &Hello).unwrap();
+			let bob_from_just_world = bundle::try_get::<JsString>(&just_world, &World);
 			let bob_from_hello_world = bundle::try_get_in::<JsString>(
 				&hello_and_world,
-				[HelloKey.as_key(), WorldKey.as_key()],
+				[Hello.as_key(), World.as_key()],
 			);
 			assert_eq!(bob_from_just_world, bob_from_hello_world);
 		}
