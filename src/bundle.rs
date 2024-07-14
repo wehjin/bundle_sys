@@ -62,6 +62,17 @@ impl Bundle {
 		data.remove(key.as_ref());
 		Self(data)
 	}
+
+	pub fn update<V: Clone + 'static, W: Clone + 'static>(
+		&self,
+		key: impl AsRef<str>,
+		f: impl Fn(Option<Rc<V>>) -> W,
+	) -> Self {
+		let key = key.as_ref();
+		let old = self.get::<V>(key);
+		let new = f(old);
+		self.assoc::<W>(key, new)
+	}
 }
 
 #[cfg(test)]
@@ -142,5 +153,16 @@ pub mod tests {
 		let bob_from_hello_world = hello_and_world.get_in::<String>(["hello", "world"]);
 		assert_eq!(bob_from_just_world, bob_from_hello_world);
 		assert_eq!(bob_from_just_world, Some(Rc::new("Bob".to_string())));
+	}
+
+	#[test]
+	fn update() {
+		let bundle = Bundle::empty()
+			.assoc("hello", 33i32)
+			.update("hello", |old| {
+				assert_eq!(old, Some(Rc::new(33i32)));
+				34i32
+			});
+		assert_eq!(bundle.get::<i32>("hello"), Some(Rc::new(34i32)));
 	}
 }
