@@ -10,8 +10,8 @@ impl BundleValue {
 	pub fn new<V: Clone + 'static>(value: V) -> Self {
 		Self(Rc::new(value))
 	}
-	pub fn get_rc<V: Clone + 'static>(&self) -> Rc<V> {
-		self.0.clone().downcast::<V>().expect("downcast")
+	pub fn get_rc<V: Clone + 'static>(&self) -> Option<Rc<V>> {
+		self.0.clone().downcast::<V>().ok()
 	}
 }
 
@@ -25,6 +25,7 @@ impl Bundle {
 	{
 		self.0.get(key.as_ref())
 			.map(|value| value.get_rc::<V>())
+			.flatten()
 	}
 	pub fn get_in<'a, V: Clone + 'static>(&self, keys: impl AsRef<[&'a str]> + Sized) -> Option<Rc<V>> {
 		let keys = keys.as_ref();
