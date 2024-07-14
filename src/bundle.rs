@@ -18,24 +18,24 @@ impl Bundle {
 	pub fn empty() -> Self { Self(CloneMap::new()) }
 	pub fn len(&self) -> usize { self.0.len() }
 
-	pub fn get<K: Key>(&self) -> Option<&Rc<K::ValueType>>
+	pub fn get<K: Key, V: Clone + 'static>(&self) -> Option<&Rc<V>>
 	{
-		if let Some(Property(key, value)) = self.0.get::<Property<K, Rc<K::ValueType>>>() {
+		if let Some(Property(key, value)) = self.0.get::<Property<K, Rc<V>>>() {
 			debug_assert_eq!(type_name_of_val(key), type_name::<K>());
 			return Some(value);
 		}
 		None
 	}
-	pub fn assoc<K: Key>(&self, key: K, value: K::ValueType) -> Self
+	pub fn assoc<K: Key, V: Clone + 'static>(&self, key: K, value: V) -> Self
 	{
 		let mut data = self.0.clone();
 		data.insert(Property(key, Rc::new(value)));
 		Self(data)
 	}
-	pub fn dissoc<K: Key>(&self) -> Self
+	pub fn dissoc<K: Key, V: Clone + 'static>(&self) -> Self
 	{
 		let mut data = self.0.clone();
-		data.remove::<Property<K, Rc<K::ValueType>>>();
+		data.remove::<Property<K, Rc<V>>>();
 		Self(data)
 	}
 }
@@ -49,7 +49,7 @@ pub mod tests {
 	fn no_value_when_empty() {
 		let bundle = Bundle::empty();
 		assert_eq!(bundle.len(), 0);
-		assert_eq!(bundle.get::<Hello>(), None)
+		assert_eq!(bundle.get::<Hello, String>(), None)
 	}
 
 	#[test]
@@ -58,15 +58,15 @@ pub mod tests {
 			.assoc(Hello, "Bob".to_string())
 			;
 		assert_eq!(first.len(), 1);
-		assert_eq!(first.get::<Hello>().unwrap().as_str(), "Bob");
+		assert_eq!(first.get::<Hello, String>().unwrap().as_str(), "Bob");
 
 		let second = first
-			.dissoc::<Hello>()
+			.dissoc::<Hello,String>()
 			;
 		assert_eq!(first.len(), 1);
-		assert_eq!(first.get::<Hello>().unwrap().as_str(), "Bob");
+		assert_eq!(first.get::<Hello, String>().unwrap().as_str(), "Bob");
 		assert_eq!(second.len(), 0);
-		assert_eq!(second.get::<Hello>(), None);
+		assert_eq!(second.get::<Hello, String>(), None);
 	}
 
 	#[test]
@@ -78,9 +78,9 @@ pub mod tests {
 			.assoc(Hello, "Marley".to_string())
 			;
 		assert_eq!(first.len(), 1);
-		assert_eq!(first.get::<Hello>().unwrap().as_ref(), "Bob");
+		assert_eq!(first.get::<Hello, String>().unwrap().as_ref(), "Bob");
 		assert_eq!(second.len(), 1);
-		assert_eq!(second.get::<Hello>().unwrap().as_ref(), "Marley");
+		assert_eq!(second.get::<Hello, String>().unwrap().as_ref(), "Marley");
 	}
 
 	#[test]
@@ -92,11 +92,11 @@ pub mod tests {
 			.assoc(World, "Jill".to_string())
 			;
 		assert_eq!(first.len(), 1);
-		assert_eq!(first.get::<Hello>().unwrap().as_ref(), "Jack");
-		assert_eq!(first.get::<World>(), None);
+		assert_eq!(first.get::<Hello, String>().unwrap().as_ref(), "Jack");
+		assert_eq!(first.get::<World, String>(), None);
 		assert_eq!(second.len(), 2);
-		assert_eq!(second.get::<Hello>().unwrap().as_ref(), "Jack");
-		assert_eq!(second.get::<World>().unwrap().as_ref(), "Jill");
+		assert_eq!(second.get::<Hello, String>().unwrap().as_ref(), "Jack");
+		assert_eq!(second.get::<World, String>().unwrap().as_ref(), "Jill");
 	}
 
 

@@ -3,9 +3,8 @@ use std::rc::Rc;
 use crate::bundle::Bundle;
 
 pub trait Key: Copy + Clone + PartialEq + 'static {
-	type ValueType: Clone + 'static;
-	fn get<'a>(&self, bundle: &'a Bundle) -> Option<&'a Rc<Self::ValueType>> {
-		bundle.get::<Self>()
+	fn get<'a, V: Clone + 'static>(&self, bundle: &'a Bundle) -> Option<&'a Rc<V>> {
+		bundle.get::<Self, V>()
 	}
 }
 
@@ -20,6 +19,6 @@ mod tests {
 		let bundle = Bundle::empty()
 			.assoc(Hello, "yo".to_string())
 			;
-		assert_eq!(Hello.get(&bundle).unwrap().as_str(), "yo");
+		assert_eq!(Hello.get::<String>(&bundle).unwrap().as_str(), "yo");
 	}
 }
