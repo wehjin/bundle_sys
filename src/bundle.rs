@@ -205,4 +205,11 @@ pub mod tests {
 			None
 		);
 	}
+
+	#[test]
+	fn expect_different_value_type() {
+		let bundle = Bundle::empty().assoc("hello", "str");
+		let get_usize = bundle.get::<usize>("hello");
+		assert_eq!(get_usize, None);
+	}
 }
