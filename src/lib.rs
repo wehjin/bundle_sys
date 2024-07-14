@@ -26,22 +26,22 @@ pub mod bundle {
 
 	pub fn empty() -> Bundle { Object::new() }
 
-	pub fn get<V: JsCast>(b: &Bundle, key: &dyn Key) -> Option<V>
+	pub fn get<V: JsCast>(bundle: &Bundle, key: &dyn Key) -> Option<V>
 	{
-		match Reflect::get(b, &key.to_js()) {
+		match Reflect::get(bundle, &key.to_js()) {
 			Ok(js_value) if js_value.is_undefined() => None,
 			Ok(js_value) => Some(V::unchecked_from_js(js_value)),
 			Err(_) => None
 		}
 	}
-	pub fn get_in<V: JsCast>(b: &Bundle, keys: impl AsRef<[&'static dyn Key]>) -> Option<V>
+	pub fn get_in<V: JsCast>(bundle: &Bundle, keys: impl AsRef<[&'static dyn Key]>) -> Option<V>
 	{
 		let keys = keys.as_ref();
 		match keys.len() {
 			0 => None,
-			1 => get::<V>(b, keys[0]),
+			1 => get::<V>(bundle, keys[0]),
 			_ => {
-				let mut b = b.clone();
+				let mut b = bundle.clone();
 				for i in 0..(keys.len() - 1) {
 					match get::<Bundle>(&b, keys[i]) {
 						None => return None,
@@ -54,39 +54,39 @@ pub mod bundle {
 			}
 		}
 	}
-	pub fn assoc(b: &Bundle, key: &dyn Key, value: impl JsCast) -> Bundle
+	pub fn assoc(bundle: &Bundle, key: &dyn Key, value: impl JsCast) -> Bundle
 	{
 		let object = Object::new();
-		Object::assign(&object, &b);
+		Object::assign(&object, &bundle);
 		Reflect::set(&object, &key.to_js(), &value.unchecked_into()).expect("reflect-set");
 		object
 	}
-	pub fn assoc_in(b: &Bundle, keys: impl AsRef<[&'static dyn Key]>, value: impl JsCast) -> Bundle
+	pub fn assoc_in(bundle: &Bundle, keys: impl AsRef<[&'static dyn Key]>, value: impl JsCast) -> Bundle
 	{
 		let keys = keys.as_ref();
 		match keys.len() {
-			0 => copy(b),
-			1 => assoc(b, keys[0], value),
+			0 => copy(bundle),
+			1 => assoc(bundle, keys[0], value),
 			_ => {
-				let new_child = match get::<Bundle>(b, keys[0]) {
+				let new_child = match get::<Bundle>(bundle, keys[0]) {
 					None => assoc_in(&empty(), &keys[1..], value),
 					Some(existing_child) => assoc_in(&existing_child, &keys[1..], value),
 				};
-				assoc(b, keys[0], new_child)
+				assoc(bundle, keys[0], new_child)
 			}
 		}
 	}
-	pub fn dissoc(b: &Bundle, key: impl Key) -> Bundle
+	pub fn dissoc(bundle: &Bundle, key: impl Key) -> Bundle
 	{
-		let object = copy(&b);
+		let object = copy(&bundle);
 		Reflect::delete_property(&object, &key.to_js()).expect("reflect-delete");
 		object
 	}
 
-	fn copy(b: &Bundle) -> Object
+	fn copy(bundle: &Bundle) -> Bundle
 	{
 		let object = Object::new();
-		Object::assign(&object, &b);
+		Object::assign(&object, &bundle);
 		object
 	}
 
