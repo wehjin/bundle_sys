@@ -35,6 +35,10 @@ pub mod bundle {
 		object
 	}
 
+	// pub fn assoc_in(b: &Bundle, keys: &[impl Key], value: impl JsCast) -> Bundle {
+	//
+	// }
+
 	#[cfg(test)]
 	pub mod tests {
 		use wasm_bindgen_test::wasm_bindgen_test;
@@ -67,6 +71,14 @@ pub mod bundle {
 			let bun = assoc(&bun, HelloKey, JsString::from("Bob"));
 			let bun = dissoc(&bun, HelloKey);
 			assert_eq!(None, HelloKey.get::<JsString>(&bun));
+		}
+
+		#[wasm_bindgen_test]
+		fn assoc_after_assoc_leaves_parent_untouched() {
+			let a = bundle::new();
+			let a = assoc(&a, HelloKey, JsString::from("Bob"));
+			let b = assoc(&a, HelloKey, JsString::from("Silent"));
+			assert_ne!(HelloKey.get::<JsString>(&a), HelloKey.get::<JsString>(&b));
 		}
 	}
 }
