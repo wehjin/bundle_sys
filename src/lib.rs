@@ -4,16 +4,29 @@ pub mod bundle {
 	use web_sys::js_sys::{Object, Reflect};
 	use web_sys::wasm_bindgen::{JsCast, JsValue};
 
-	pub trait Key: Copy {
-		fn as_str(&self) -> &'static str { type_name_of_val(self) }
-		fn to_js(&self) -> JsValue { self.as_str().into() }
-		fn get<V: JsCast>(self, bundle: &Bundle) -> Option<V> { get(&bundle, self) }
+	pub trait Key {
+		fn to_js(&self) -> JsValue { type_name_of_val(self).into() }
+	}
+	impl<T: Key> Key for Box<T> {}
+
+	pub trait Get {
+		fn get<V: JsCast>(self, b: &Bundle) -> Option<V>;
+	}
+
+	impl<A: Key> Get for A {
+		fn get<V: JsCast>(self, b: &Bundle) -> Option<V> { get(&b, self) }
+	}
+
+	#[derive(Clone)]
+	struct ShadowKey(JsValue);
+	impl Key for ShadowKey {
+		fn to_js(&self) -> JsValue { self.0.clone() }
 	}
 
 
 	pub type Bundle = Object;
 
-	pub fn new() -> Bundle { Object::new() }
+	pub fn empty() -> Bundle { Object::new() }
 
 	pub fn get<V: JsCast>(b: &Bundle, key: impl Key) -> Option<V> {
 		match Reflect::get(b, &key.to_js()) {
@@ -29,15 +42,36 @@ pub mod bundle {
 		object
 	}
 	pub fn dissoc(b: &Bundle, key: impl Key) -> Bundle {
-		let object = Object::new();
-		Object::assign(&object, &b);
+		let object = copy(&b);
 		Reflect::delete_property(&object, &key.to_js()).expect("reflect-delete");
 		object
 	}
 
-	// pub fn assoc_in(b: &Bundle, keys: &[impl Key], value: impl JsCast) -> Bundle {
-	//
-	// }
+
+	pub fn assoc_in(b: &Bundle, mut keys: Vec<Box<dyn Key>>, value: impl JsCast) -> Bundle {
+		match keys.len() {
+			0 => copy(b),
+			1 => {
+				let key = ShadowKey(keys.remove(0).to_js());
+				assoc(b, key, value)
+			}
+			_ => {
+				let head_key = ShadowKey(keys.remove(0).to_js());
+				let tail_keys = keys;
+				let value = match get::<Bundle>(b, head_key.clone()) {
+					None => assoc_in(&empty(), tail_keys, value),
+					Some(existing) => assoc_in(&existing, tail_keys, value),
+				};
+				assoc(b, head_key, value)
+			}
+		}
+	}
+
+	fn copy(b: &Bundle) -> Object {
+		let object = Object::new();
+		Object::assign(&object, &b);
+		object
+	}
 
 	#[cfg(test)]
 	pub mod tests {
@@ -45,40 +79,49 @@ pub mod bundle {
 		use web_sys::js_sys::JsString;
 
 		use crate::bundle;
-		use crate::bundle::{assoc, dissoc, Key};
+		use crate::bundle::{assoc, assoc_in, Bundle, dissoc, empty, Get, Key};
 
 		#[derive(Copy, Clone)]
 		pub struct HelloKey;
 		impl Key for HelloKey {}
 
+		#[derive(Copy, Clone)]
+		pub struct WorldKey;
+		impl Key for WorldKey {}
 
 		#[wasm_bindgen_test]
 		fn no_value_when_empty() {
-			let bun = bundle::new();
-			assert_eq!(None, HelloKey.get::<JsString>(&bun));
+			let bun = empty();
+			assert_eq!(None, WorldKey {}.get::<JsString>(&bun));
 		}
 
 		#[wasm_bindgen_test]
 		fn some_value_after_assoc() {
-			let bun = bundle::new();
-			let bun = assoc(&bun, HelloKey, JsString::from("Bob"));
-			assert_eq!(Some(JsString::from("Bob")), HelloKey.get(&bun));
+			let bun = empty();
+			let bun = assoc(&bun, WorldKey, JsString::from("Bob"));
+			assert_eq!(Some(JsString::from("Bob")), WorldKey.get(&bun));
 		}
 
 		#[wasm_bindgen_test]
 		fn no_value_after_dissoc() {
-			let bun = bundle::new();
-			let bun = assoc(&bun, HelloKey, JsString::from("Bob"));
-			let bun = dissoc(&bun, HelloKey);
-			assert_eq!(None, HelloKey.get::<JsString>(&bun));
+			let bun = empty();
+			let bun = assoc(&bun, WorldKey, JsString::from("Bob"));
+			let bun = dissoc(&bun, WorldKey);
+			assert_eq!(None, WorldKey.get::<JsString>(&bun));
 		}
 
 		#[wasm_bindgen_test]
 		fn assoc_after_assoc_leaves_parent_untouched() {
-			let a = bundle::new();
-			let a = assoc(&a, HelloKey, JsString::from("Bob"));
-			let b = assoc(&a, HelloKey, JsString::from("Silent"));
-			assert_ne!(HelloKey.get::<JsString>(&a), HelloKey.get::<JsString>(&b));
+			let a = assoc(&empty(), WorldKey, JsString::from("Bob"));
+			let b = assoc(&a, WorldKey, JsString::from("Silent"));
+			assert_ne!(WorldKey.get::<JsString>(&a), WorldKey.get::<JsString>(&b));
+		}
+
+		#[wasm_bindgen_test]
+		fn assoc_in_creates_sub_bundles() {
+			let parent = assoc_in(&empty(), vec![Box::new(HelloKey), Box::new(WorldKey)], JsString::from("Bob"));
+			let child = bundle::get::<Bundle>(&parent, HelloKey);
+			assert!(child.is_some());
 		}
 	}
 }
