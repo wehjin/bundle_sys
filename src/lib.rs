@@ -97,15 +97,13 @@ pub mod bundle {
 
 		#[wasm_bindgen_test]
 		fn some_value_after_assoc() {
-			let bun = empty();
-			let bun = assoc(&bun, WorldKey, JsString::from("Bob"));
+			let bun = assoc(&empty(), WorldKey, JsString::from("Bob"));
 			assert_eq!(Some(JsString::from("Bob")), WorldKey.get(&bun));
 		}
 
 		#[wasm_bindgen_test]
 		fn no_value_after_dissoc() {
-			let bun = empty();
-			let bun = assoc(&bun, WorldKey, JsString::from("Bob"));
+			let bun = assoc(&empty(), WorldKey, JsString::from("Bob"));
 			let bun = dissoc(&bun, WorldKey);
 			assert_eq!(None, WorldKey.get::<JsString>(&bun));
 		}
