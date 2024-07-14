@@ -68,11 +68,11 @@ pub mod bundle {
 			0 => copy(b),
 			1 => assoc(b, keys[0], value),
 			_ => {
-				let value = match get::<Bundle>(b, keys[0]) {
+				let new_child = match get::<Bundle>(b, keys[0]) {
 					None => assoc_in(&empty(), &keys[1..], value),
-					Some(existing) => assoc_in(&existing, &keys[1..], value),
+					Some(existing_child) => assoc_in(&existing_child, &keys[1..], value),
 				};
-				assoc(b, keys[0], value)
+				assoc(b, keys[0], new_child)
 			}
 		}
 	}
