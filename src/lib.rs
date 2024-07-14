@@ -1,18 +1,17 @@
 use std::any::type_name_of_val;
 
-use web_sys::js_sys::{JsString, Object, Reflect};
+use web_sys::js_sys::{Object, Reflect};
 use web_sys::wasm_bindgen::{JsCast, JsValue};
 
 pub trait BunKey: Copy {
-	type ValueType: JsCast;
 	fn as_str(&self) -> &'static str { type_name_of_val(self) }
 	fn to_js(&self) -> JsValue { self.as_str().into() }
-	fn get(self, bun: &DataBun) -> Option<Self::ValueType> { bun.get(self) }
+	fn get<V: JsCast>(self, bun: &DataBun) -> Option<V> { bun.get(self) }
 }
 
 #[derive(Copy, Clone)]
 pub struct HelloKey;
-impl BunKey for HelloKey { type ValueType = JsString; }
+impl BunKey for HelloKey {}
 
 #[derive(Debug)]
 pub struct DataBun(Object);
@@ -20,10 +19,7 @@ impl DataBun {
 	pub fn new() -> Self {
 		Self(Object::new())
 	}
-	pub fn get<K, V>(&self, key: K) -> Option<V>
-	where
-		K: BunKey<ValueType=V>,
-		V: JsCast,
+	pub fn get<V: JsCast>(&self, key: impl BunKey) -> Option<V>
 	{
 		match Reflect::get(&self.0, &key.to_js()) {
 			Ok(js_value) if js_value.is_undefined() => None,
@@ -31,21 +27,13 @@ impl DataBun {
 			Err(_) => None
 		}
 	}
-	pub fn assoc<K, V>(&self, key: K, value: K::ValueType) -> Self
-	where
-		K: BunKey<ValueType=V>,
-		V: JsCast,
-	{
+	pub fn assoc(&self, key: impl BunKey, value: impl JsCast) -> Self {
 		let object = Object::new();
 		Object::assign(&object, &self.0);
 		Reflect::set(&object, &key.to_js(), &value.unchecked_into()).expect("reflect-set");
 		Self(object)
 	}
-	pub fn dissoc<K, V>(&self, key: K) -> Self
-	where
-		K: BunKey<ValueType=V>,
-		V: JsCast,
-	{
+	pub fn dissoc(&self, key: impl BunKey) -> Self {
 		let object = Object::new();
 		Object::assign(&object, &self.0);
 		Reflect::delete_property(&object, &key.to_js()).expect("reflect-delete");
@@ -56,13 +44,14 @@ impl DataBun {
 #[cfg(test)]
 pub mod tests {
 	use wasm_bindgen_test::wasm_bindgen_test;
+	use web_sys::js_sys::JsString;
 
 	use super::*;
 
 	#[wasm_bindgen_test]
 	fn no_value_when_empty() {
 		let bun = DataBun::new();
-		assert_eq!(None, HelloKey.get(&bun));
+		assert_eq!(None, HelloKey.get::<JsString>(&bun));
 	}
 
 	#[wasm_bindgen_test]
@@ -79,6 +68,6 @@ pub mod tests {
 			.assoc(HelloKey, JsString::from("Bob"))
 			.dissoc(HelloKey)
 			;
-		assert_eq!(None, HelloKey.get(&bun));
+		assert_eq!(None, HelloKey.get::<JsString>(&bun));
 	}
 }
