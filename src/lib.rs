@@ -35,26 +35,34 @@ pub mod bundle {
 			Err(_) => None
 		}
 	}
+	pub fn get_in<V: JsCast>(b: &Bundle, keys: &[Box<dyn Key>]) -> Option<V> {
+		match keys.len() {
+			0 => None,
+			1 => get::<V>(b, ShadowKey(keys[0].to_js())),
+			_ => {
+				let mut b = b.clone();
+				for i in 0..(keys.len() - 1) {
+					match get::<Bundle>(&b, ShadowKey(keys[i].to_js())) {
+						None => return None,
+						Some(child) => {
+							b = child;
+						}
+					}
+				}
+				get::<V>(&b, ShadowKey(keys[keys.len() - 1].to_js()))
+			}
+		}
+	}
 	pub fn assoc(b: &Bundle, key: impl Key, value: impl JsCast) -> Bundle {
 		let object = Object::new();
 		Object::assign(&object, &b);
 		Reflect::set(&object, &key.to_js(), &value.unchecked_into()).expect("reflect-set");
 		object
 	}
-	pub fn dissoc(b: &Bundle, key: impl Key) -> Bundle {
-		let object = copy(&b);
-		Reflect::delete_property(&object, &key.to_js()).expect("reflect-delete");
-		object
-	}
-
-
 	pub fn assoc_in(b: &Bundle, mut keys: Vec<Box<dyn Key>>, value: impl JsCast) -> Bundle {
 		match keys.len() {
 			0 => copy(b),
-			1 => {
-				let key = ShadowKey(keys.remove(0).to_js());
-				assoc(b, key, value)
-			}
+			1 => assoc(b, ShadowKey(keys.remove(0).to_js()), value),
 			_ => {
 				let head_key = ShadowKey(keys.remove(0).to_js());
 				let tail_keys = keys;
@@ -65,6 +73,11 @@ pub mod bundle {
 				assoc(b, head_key, value)
 			}
 		}
+	}
+	pub fn dissoc(b: &Bundle, key: impl Key) -> Bundle {
+		let object = copy(&b);
+		Reflect::delete_property(&object, &key.to_js()).expect("reflect-delete");
+		object
 	}
 
 	fn copy(b: &Bundle) -> Object {
@@ -118,8 +131,10 @@ pub mod bundle {
 		#[wasm_bindgen_test]
 		fn assoc_in_creates_sub_bundles() {
 			let parent = assoc_in(&empty(), vec![Box::new(HelloKey), Box::new(WorldKey)], JsString::from("Bob"));
-			let child = bundle::get::<Bundle>(&parent, HelloKey);
-			assert!(child.is_some());
+			let child = bundle::get::<Bundle>(&parent, HelloKey).unwrap();
+			let from_child = bundle::get::<JsString>(&child, WorldKey);
+			let from_parent = bundle::get_in::<JsString>(&parent, &[Box::new(HelloKey), Box::new(WorldKey)]);
+			assert_eq!(from_child, from_parent);
 		}
 	}
 }
