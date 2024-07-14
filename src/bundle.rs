@@ -71,7 +71,24 @@ impl Bundle {
 		let key = key.as_ref();
 		let old = self.get::<V>(key);
 		let new = f(old);
-		self.assoc::<W>(key, new)
+		self.assoc(key, new)
+	}
+
+	pub fn update_in<'a, V: Clone + 'static, W: Clone + 'static>(
+		&self,
+		keys: impl AsRef<[&'a str]> + Sized,
+		f: impl Fn(Option<Rc<V>>) -> W,
+	) -> Self {
+		let keys = keys.as_ref();
+		match keys.len() {
+			0 => self.clone(),
+			1 => self.update(keys[0], f),
+			_ => {
+				let child = self.get::<Bundle>(keys[0]).unwrap_or_else(|| Rc::new(Bundle::empty()));
+				let new_child = child.update_in(&keys[1..], f);
+				self.assoc(keys[0], new_child)
+			}
+		}
 	}
 }
 
@@ -159,10 +176,32 @@ pub mod tests {
 	fn update() {
 		let bundle = Bundle::empty()
 			.assoc("hello", 33i32)
-			.update("hello", |old| {
-				assert_eq!(old, Some(Rc::new(33i32)));
-				34i32
-			});
+			.update(
+				"hello",
+				|old| {
+					assert_eq!(old, Some(Rc::new(33i32)));
+					34i32
+				},
+			);
 		assert_eq!(bundle.get::<i32>("hello"), Some(Rc::new(34i32)));
+	}
+
+	#[test]
+	fn update_in() {
+		let bundle = Bundle::empty()
+			.assoc_in(["hello", "hello", "world"], "world")
+			.assoc_in(["hello", "hello", "universe"], "universe")
+			.update_in(
+				["hello", "hello"],
+				|from: Option<Rc<Bundle>>| from.unwrap().dissoc::<&str>("world"),
+			);
+		assert_eq!(
+			bundle.get_in::<&str>(["hello", "hello", "universe"]),
+			Some(Rc::new("universe"))
+		);
+		assert_eq!(
+			bundle.get_in::<&str>(["hello", "hello", "world"]),
+			None
+		);
 	}
 }
