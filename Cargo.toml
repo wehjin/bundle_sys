@@ -4,7 +4,4 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-web-sys = "0.3.69"
-
-[dev-dependencies]
-wasm-bindgen-test = "0.3.42"
+anymap = { version = "1.0.0-beta.2", default-features = false, features = ["hashbrown"] }
