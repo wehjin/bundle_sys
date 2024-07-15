@@ -4,30 +4,51 @@ use std::fmt::Debug;
 use std::rc::Rc;
 
 #[derive(Debug, Clone)]
-struct BundleValue(Rc<dyn Any>);
+struct Item(Rc<dyn Any>);
 
-impl BundleValue {
-	pub fn new<V: Clone + 'static>(value: V) -> Self {
+impl Item {
+	fn new<V: 'static>(value: V) -> Self {
 		Self(Rc::new(value))
 	}
-	pub fn get_rc<V: Clone + 'static>(&self) -> Option<Rc<V>> {
+	fn get_rc<V: 'static>(&self) -> Option<Rc<V>> {
 		self.0.clone().downcast::<V>().ok()
 	}
 }
 
 #[derive(Debug, Clone)]
-pub struct Bundle(HashMap<String, BundleValue>);
+pub struct Bundle(HashMap<String, Item>);
 impl Bundle {
 	pub fn empty() -> Self { Self(HashMap::new()) }
 	pub fn len(&self) -> usize { self.0.len() }
-
-	pub fn get<V: Clone + 'static>(&self, key: impl AsRef<str>) -> Option<Rc<V>>
+}
+impl Bundle {
+	pub fn get<V: 'static>(&self, key: impl AsRef<str>) -> Option<Rc<V>>
 	{
 		self.0.get(key.as_ref())
 			.map(|value| value.get_rc::<V>())
 			.flatten()
 	}
-	pub fn get_in<'a, V: Clone + 'static>(&self, keys: impl AsRef<[&'a str]> + Sized) -> Option<Rc<V>> {
+	pub fn assoc<V: 'static>(&self, key: impl AsRef<str>, value: V) -> Self
+	{
+		let mut data = self.0.clone();
+		data.insert(key.as_ref().to_string(), Item::new(value));
+		Self(data)
+	}
+	pub fn dissoc<V: 'static>(&self, key: impl AsRef<str>) -> Self
+	{
+		let mut data = self.0.clone();
+		data.remove(key.as_ref());
+		Self(data)
+	}
+	pub fn update<V: 'static, W: 'static>(&self, key: impl AsRef<str>, f: impl Fn(Option<Rc<V>>) -> W) -> Self {
+		let key = key.as_ref();
+		let old = self.get::<V>(key);
+		let new = f(old);
+		self.assoc(key, new)
+	}
+}
+impl Bundle {
+	pub fn get_in<'a, V: 'static>(&self, keys: impl AsRef<[&'a str]> + Sized) -> Option<Rc<V>> {
 		let keys = keys.as_ref();
 		match keys.len() {
 			0 => None,
@@ -39,13 +60,7 @@ impl Bundle {
 		}
 	}
 
-	pub fn assoc<V: Clone + 'static>(&self, key: impl AsRef<str>, value: V) -> Self
-	{
-		let mut data = self.0.clone();
-		data.insert(key.as_ref().to_string(), BundleValue::new(value));
-		Self(data)
-	}
-	pub fn assoc_in<'a, V: Clone + 'static>(&self, keys: impl AsRef<[&'a str]> + Sized, value: V) -> Self {
+	pub fn assoc_in<'a, V: 'static>(&self, keys: impl AsRef<[&'a str]> + Sized, value: V) -> Self {
 		let keys = keys.as_ref();
 		match keys.len() {
 			0 => self.clone(),
@@ -57,25 +72,8 @@ impl Bundle {
 			}
 		}
 	}
-	pub fn dissoc<V: Clone + 'static>(&self, key: impl AsRef<str>) -> Self
-	{
-		let mut data = self.0.clone();
-		data.remove(key.as_ref());
-		Self(data)
-	}
 
-	pub fn update<V: Clone + 'static, W: Clone + 'static>(
-		&self,
-		key: impl AsRef<str>,
-		f: impl Fn(Option<Rc<V>>) -> W,
-	) -> Self {
-		let key = key.as_ref();
-		let old = self.get::<V>(key);
-		let new = f(old);
-		self.assoc(key, new)
-	}
-
-	pub fn update_in<'a, V: Clone + 'static, W: Clone + 'static>(
+	pub fn update_in<'a, V: 'static, W: 'static>(
 		&self,
 		keys: impl AsRef<[&'a str]> + Sized,
 		f: impl Fn(Option<Rc<V>>) -> W,
